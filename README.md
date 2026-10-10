@@ -2,16 +2,23 @@
 
 Описание/Пошаговая инструкция выполнения домашнего задания:
 (1) Запустить сервис S3 в облаке или локально (Docker + minio)
+
 (2) Создать бакет используя API
+
 (3) Сохранить файл в бакет используя API
+
 (4) Сохраните файл программно - выберите знакомый язык программирования (C#, Java, Go, Python или любой другой, для которого есть библиотека для работы с S3), отправьте файл в бакет и потом получите массив файлов из бакет и отобазите в бараузере или консоли.
+
 Для пунктов 2 и 3 сделайте скриншоты результата выполнения.
+
 Для пункта 4 приложите ссылку на репозитарий на гитхабе с исходным кодом.
 
 
 ## (1) Запустить сервис S3 в облаке или локально (Docker + minio) ## 
 
 Использую пример из [How to Self‑Host an S3‑Compatible Object Store with MinIO on Your Staging Server (and Save Hundreds of Dollars a Month)]([https://medium.com/@kaloyanmanev/how-to-run-rabbitmq-in-docker-compose-e5baccc3e644](https://www.freecodecamp.org/news/how-to-self-host-an-s3-compatible-object-store-with-minio-on-your-staging-server/#heading-5-step-2-run-minio-with-docker-compose) 
+
+Официальный образ больше не доступен от вендора, используя community edition pgsty/minio:RELEASE.2026-08-04T00-00-00Z. 
 
 Поднял docker контейнер
 ```
@@ -71,26 +78,59 @@ CONTAINER ID   IMAGE                                      COMMAND               
 ```
 
 UI доступен по http://127.0.0.1:9001/login
-<img width="1185" height="741" alt="image" src="https://github.com/user-attachments/assets/5acdb347-9752-4172-aae8-aee40d7a66c8" />
+<img width="1847" height="667" alt="image" src="https://github.com/user-attachments/assets/26a78a68-78e6-4b7f-ac42-e82992e62523" />
+
 
 
 
 
 ## (2) Создать бакет используя API ## 
-
-
+Создал бакет используя API самого докера 
+```
+-- подключиться к mc серверу
+student:~/S3$ docker exec -it minio-staging \
+  mc alias set local http://localhost:9000 admin change-me-please
+mc: Configuration written to `/tmp/.mc/config.json`. Please update your access credentials.
+mc: Successfully created `/tmp/.mc/share`.
+mc: Initialized share uploads `/tmp/.mc/share/uploads.json` file.
+mc: Initialized share downloads `/tmp/.mc/share/downloads.json` file.
+Added `local` successfully.
+-- создать бакет
+student:~/S3$ docker exec -it minio-staging mc mb local/domain-files-staging
+Bucket created successfully `local/domain-files-staging`.
+-- выбрать политику
+student:~/S3$ docker exec -it minio-staging \
+  mc anonymous set none local/domain-files-staging
+Access permission for `local/domain-files-staging` is set to `private`
+```
 
 ## (3) Сохранить файл в бакет используя API ##
-
+Загрузил файл в бакет domain-files-staging
+```
+student:/data$ docker exec -it minio-staging sh -c "mc alias set local http://localhost:9000 admin change-me-please && mc cp /tmp/ll.lst local/domain-files-staging/"
+Added `local` successfully.
+/tmp/ll.lst:                       10 B / 10 B ┃▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓┃ 37 B/s 0sstudent:/data$ 
+```
 
 ## (4) Сохраните файл программно ##
 
-прочитал сообщения через CURL
+Сделал это через питон script с помощью кода
 ```
-student:~$ curl -u kalo:kalo \
-  -H "Content-Type: application/json" \
-  -X POST \
-  -d '{"count":2, "ackmode":"ack_requeue_true", "encoding":"auto"}' \
-  http://localhost:15672/api/queues/%2F/queue-any/get
-[{"payload_bytes":19,"redelivered":true,"exchange":"","routing_key":"queue-any","message_count":1,"properties":{"delivery_mode":2,"headers":{}},"payload":"testing 1st message","payload_encoding":"string"},{"payload_bytes":19,"redelivered":true,"exchange":"","routing_key":"queue-any","message_count":0,"properties":{"delivery_mode":2,"headers":{}},"payload":"testing 2nd message","payload_encoding":"string"}]
+import io
+from minio import Minio
+
+client = Minio("localhost:9000", access_key="admin", secret_key="change-me-please", secure=False)
+
+# Convert string data to a byte stream
+file_data = b"This is the content of my in-memory file."
+stream = io.BytesIO(file_data)
+
+client.put_object(
+    bucket_name="domain-files-staging",
+    object_name="memory-file.txt",
+    data=stream,
+    length=len(file_data), # MinIO requires the size of the stream
+    content_type="text/plain"
+)
+print("In-memory file uploaded successfully.")
 ```
